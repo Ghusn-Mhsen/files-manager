@@ -1,0 +1,4 @@
+1- check out file  : Done
+2- check out and check in history : Done
+3- middle ware for checking files before delete from group : Done
+4- role admain and owner before operation in file 

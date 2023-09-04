@@ -1,0 +1,343 @@
+[SQL_PLUS]:
+
+@ open oracle:  (Default is NONARCHIVED)
+1- shutdown:immediate
+2-startup:noumount
+3-alter database mount
+4-alter database open
+//to open oracle in first step without dtails: only wirte  startup 
+
+@ close connect to oracle:
+-shutdown  // (shutdown:immediate #recommanded)
+
+@ to create pFile:
+>> Create pfile = “c:\mypfile.ora” from spfile
+
+
+@ open oracle from my PFile:
+1- shutdown:immediate
+2-startup pfile= “c:\mypfile.ora”nomoumt
+3-alter database mount
+4-alter database open
+
+@ create user in DB:
+- create user userName IDENTIFIED BY passwordOfUser.//this user can't Access to db because he hasn't privilege
+@ givinig user privilege to create session :
+- grant create session to userName .// now this user can access to Db
+
+@ to exit from session:
+-1- disconnect
+-2- exit
+
+##NOTE: SYSDBA can access to Db before open (level 3 of statrtup operation) but any anthor user can't do it .
+
+@ there are 2 ways to change parameters of spFile:
+**WAY1**:
+- taking a copy from SpFile and generate it as PFile (text File) and editing on it.
+# Create pfile = “c:\Users\mah\mypfile.ora” from spfile
+**WAY2**:
+- changing detected parameter .
+# ALTER SYSTEM SET nameOfParameter=newValue SCOPE=MEMORY/SPFILE/BOTH; //Recomanded Memory (Editing on instance only)
+$ EX: ALTER SYSTEM SET OPEN_CURSORS=300 SCOPE=MEMORY;
+
+##Note: when i use Memory as Scope --> i will changes on startup (Changes is saved in instance only).if i need save it permanently
+## rewrite command with detect scope as SPFILE.
+
+%%%% to see Changes: show parameters nameOfPar 
+                   OR 
+%%% SELECT name,value from V$parameter where NAME=’open_cursors’;
+
+@ create table:
+ >> Create table tableName <col1 Number<2>>
+
+@ convert DB from nonArchiveMode To archiveMode : 
+ >> SHUTDOWN IMMEDIATE;
+ >> STARTUP MOUNT;
+ >> ALTER DATABASE ARCHIVELOG;
+ >> ALTER DATABASE OPEN;
+
+@ to Know the mode is enabeled :
+ >> Archive log list;
+
+@ to Konw sequence number and active file in archive:
+ >>Select * from v$log;
+
+@ to Change the file log Current 
+ >> alter system switch logfile;
+
+@ loop in sqlPlus:
+ >> Declare i number(7) := 1;
+    begin
+    loop
+    exit when I = 200000;
+    insert into myuser.t1 values (i, ‘koko ‘||i );
+    i := i + 1;
+    end loop;
+    commit;
+    end;
+ --------------------------------------------------------------------------------------------------------------------------------------
+[SQL_DEVLOPMENT]:
+
+@@ Basics:
+
+@ Create table space:
+>> CREATE TABLESPACE MYTABLESPACE
+  DATAFILE 'C:\app\Ali\oradata\orcl\mydatafile1.dbf' SIZE 20M,
+  'C:\app\Ali\oradata\orcl\mydatafile2.dbf' SIZE 20M
+  LOGGING
+  EXTENT MANAGEMENT LOCAL
+  SEGMENT SPACE MANAGEMENT AUTO
+
+@ change size dataFile :
+>> Alter database datafile 'مسار الملف' resize 30M
+
+@ add file to Table Space: (this opr is reduce performance because it leads to Migration )
+1- ALter tablespace tablespace_name
+2- add dataFile 'مسار الملف' size 30M
+
+@ createUser:
+>> CREATE USER MYUSER PROFILE DEFAULT  // i can use name of profile instead of Default
+  IDENTIFIED BY myuser000 DEFAULT TABLESPACE MYTABLESPACE
+  TEMPORARY TABLESPACE TEMP
+  ACCOUNT UNLOCK;
+
+@ add privilage connect to user for access to DB:
+>> GRANT CONNECT TO MYUSER;
+
+@ add basic privileges to user (create table , ....)
+>> GRANT RESOURCE TO MYUSER ;
+
+@ create profile: (Profile for Control in resourses (in level user not connection) (memory , cpu , .... ))
+>> CREATE PROFILE MYPROFILE LIMIT
+  CONNECT_TIME 30              //30 minute (over 30 -> kill session)
+  IDLE_TIME 1                 //if i stop from work for 1 min -> kill session
+  SESSIONS_PER_USER 1         //this role on end user level (access is allowed for 1 user only)
+  PASSWORD_LIFE_TIME 30
+  PASSWORD_LOCK_TIME 5
+  FAILED_LOGIN_ATTEMPTS 3;
+
+@ delete User:
+- Drop user myUser cascade
+
+@ give roles to User for access to tabels of anthor user: (you must reconnect ,user is given privileges when he connect) //role control in permissions
+>> CREATE ROLE MYROLE NOT IDENTIFIED ;
+>> GRANT SELECT ON HR.EMPLOYEES TO MYROLE ;
+>> GRANT MYROLE TO MYUSER; 
+
+@ nonArchiveMode: (exportAndImportDataFiles) // import and export 99% is occured in MOUNT level because all connection is closed (only SYSDB can access to it)
+1- diconnect from User
+//Export
+2- ../EXP.EXE USERID='sys/passwOrd' OWNER="myuser" FILE =C:\test\myuser123.DMP
+COMPRESS=Y GRANTS=Y INDEXES=Y LOG=C:\test\myuser123EXP.LOG ROWS=Y CONSTRAINTS=Y
+3- drop myUser then create it and giv him privilege connect and resourse and ....
+4- disconnect
+//IMPORT (i create user before import because the DMP File don't create User)
+5- IMP.EXE USERID=’sys/PasswOrd as sysdba’ FROMUSER=”myuser” TOUSER=”myuser”
+FILE=C:\test\myuser123.DMP GRANTS=Y INDEXES=Y LOG=C:\test\myuser123imp.LOG ROWS=Y
+CONSTRAINTS=Y
+
+@ Create table:
+ >> Create table mytable (
+ col1 NUMBER(2) CONSTRAINT mytable_pk PRIMARY KEY, //in oracle there are not identity(Auto Increment) like sqlServer so we will create sequence 
+ col2 varchar2(1) CONSTRAINT mytable_col2_nn NOT NULL
+ CONSTRAINT mytable_col2_ch CHECK (col2 IN (‘A’, ‘B’, ‘C’)),
+ col3 NUMBER(6) CONSTRAINT mytable_col3_nn NOT NULL
+ CONSTRAINT mytable_col3_ch CHECK (col3 > 0)
+ );
+
+@ Create Sequence:
+ >> CREATE SEQUENCE mytableseq
+ MINVALUE 1
+ MAXVALUE 999
+ INCREMENT BY 1
+ START WITH 1
+ NOCACHE (Recomanded for not gaps in numbers in sequence)
+ ORDER
+ NOCYCLE;
+
+@ For get val in sequence:
+  >> SELECT S_1_1.NEXTVAL FROM DUAL;
+
+@ For delete content shared pool (which the value of shared pool is stored):
+  >> ALTER SYSTEM FLUSH SHARED_POOL;
+
+
+@@ Triggers:
+
+   $% Usually Trigger from type Before is used to Validation  
+@ Ex : Create Trigger Without For Each Row : this trigger disallow for user execute any DML and this type of triggers  don't need "for each row" because i need it once (1 only) 
+  >> CREATE OR REPLACE TRIGGER secure_mytable  // Replace mean if the triiger is exist i will replace it with current
+    BEFORE INSERT OR UPDATE OR DELETE
+    ON mytable
+    DECLARE
+    my_exc EXCEPTION;
+    BEGIN
+    IF (TO_CHAR(SYSDATE, ‘DY’) IN ( ‘FRI’ , ‘SAT’)) OR
+    (TO_CHAR(SYSDATE, ‘HH24 :MI’) NOT BETWEEN ’08:30’ AND ’15:30’) THEN
+    RAISE my_exc; // Raise equal throw
+    END IF;
+    EXCEPTION
+    WHEN my_exc THEN
+    RAISE_APPLICATION_ERROR(-20500,’Changes only allowed during work time’);
+    END;
+
+@ EX: Create Trigger With For Each Row : Using sequence for primary Key (instead of auto increment in Sql Server) 
+  >> CREATE OR REPLACE TRIGGER pk_mytable
+     BEFORE INSERT
+     ON mytable
+     FOR EACH ROW
+     BEGIN
+     SELECT mytableseq.NEXTVAL
+     INTO :NEW.col1   // in this row i make the value which it coming in req take val of seq
+     FROM DUAL; // Dummy Table to success operation only
+     EXCEPTION
+     WHEN OTHERS THEN
+     RAISE_APPLICATION_ERROR(-20111,’can not generate seq value’ );
+     END;
+@ EX : LOGGING DATABASE DML:
+  >> CREATE OR REPLACE TRIGGER audit_mytable_values
+  AFTER INSERT OR UPDATE OR DELETE
+  ON myuser.mytable
+  FOR EACH ROW
+  DECLARE
+  v_audit_kind VARCHAR2(1);
+  v_audit_seq NUMBER(6);
+  BEGIN
+  IF INSERTING THEN v_audit_kind := ‘I’; // INSERTING -> operation 
+  ELSIF UPDATING THEN v_audit_kind := ‘U’;
+  ELSEIF DELETING THEN v_audit_kind := ‘D’;
+  END IF;
+  SELECT myuser.auditseq.nextval
+  INTO v_audit_seq FROM DUAL;
+  INSERT INTO myuser.audit_mytable VALUES
+  (:OLD.col1, :OLD.col2, :OLD.col3, :NEW.col1, :NEW.col2, :NEW.col3 ,v_audit_seq,v_audit_kind, SYSDATE);
+  END;
+
+ ##NOTE : YOU Must doing ">> COMMIT;" To Save Changes
+ 
+@ To Create trigger on Db level we need permessions (role as admin)
+  >> GRANT administer database trigger to myuser;
+
+@ Logging DDL:
+  >>>> CREATE OR REPLACE TRIGGER bcs_trigger
+  BEFORE CREATE OR DROP
+  ON DATABASE
+  BEGIN
+  INSERT INTO ddl_log
+  SELECT ora_sysevent, ora_dict_obj_owner, ora_dict_obj_name, USER, SYSDATE
+  FROM DUAL;
+  END bcs_trigger;
+
+@ LOGGING Connect_To_DB (WHO AND WHEN):
+  >> CREATE TABLE logon_tbl (
+  who VARCHAR2(30),
+  when DATE);
+  CREATE OR REPLACE TRIGGER logondb_trigger
+  AFTER LOGON ON DATABASE
+  BEGIN
+  INSERT INTO logon_tbl (who, when) VALUES (user, sysdate);
+  END;
+
+
+
+@@ Partiation:
+   - it is used in Fact Table (Huge Data) , i don't detect from any part i need info (Opomizier know)
+   - partiation Method is (Range (usually on Date) , Hash (equal parts) , List(on areas (country,city,....)) )  // Most Used is Range && List
+   - i can create composite partiation (Hash-Range,Range-List,Range-range,List-range,List-hash,list-List ##Note -standard : Expert don't prefer composite part from same type)
+
+@ Create Range Partiation:
+  1-   Connect myuser/myuser;
+  2-  >> Create table sales_range (
+         sales_id NUMBER(5) CONSTRAINT sales_id_pk PRIMARY KEY,
+         salesman_id NUMBER(5),
+         sales_date DATE)
+      >> PARTITION BY RANGE (sales_date)
+         (
+         PARTITION sales_jan2011 VALUES LESS THAN (TO_DATE(‘01/02/2011’,’DD/MM/YYYY’)),
+         PARTITION sales_feb2011 VALUES LESS THAN (TO_DATE(‘01/03/2011’,’DD/MM/YYYY’)),
+         PARTITION sales_mar2011 VALUES LESS THAN (TO_DATE(‘01/04/2011’,’DD/MM/YYYY’)),
+         PARTITION sales_apr2011 VALUES LESS THAN (TO_DATE(‘01/05/2011’,’DD/MM/YYYY’))  // you must add part to recive rows that have dateCol > 1/5/2011
+         )  ;
+@ select From detected part:
+  >> SELECT * FROM sales_range PARTITION (sales_jan2011);
+
+@ Add Part To Table:
+  >> ALTER TABLE sales_range ADD PARTITION sales_after5_2011 values less than (MAXVALUE); //without this line if i insert row (dateCol in Row > 1/5/2011) leads to error 
+
+@ I can't update valOfPartation because this leads to move rows from part to anthor and that physical opr , the optimizer can't do it.
+  and do it you must rebuild partation.
+
+@ Merge Partations:
+  >> Alter table sales_range merge PARTITIONS sales_feb2011, sales_mar2011 into PARTITION
+  sales_Q12011;
+
+@ Drop partation:
+  >> ALTER TABLE sales_range drop Partition sales_Q12011; //this leads to delete rows not partation only.
+
+@ Show partations on Table:
+  >> SELECT partition name, subpartition count, high value
+     From dba_tab_partitions
+     Where TABLE_NAME = ‘SALES_RANGE’; 
+
+@ To sure reading from partations not Whole table :
+  >> EXPLAIN PLAN FOR
+  >> SELECT * FROM sales_range where sales_date = to_date(’02-01-2001’, ‘DD-MM-YYYY’);
+  >> SELECT * FROM TABLE (dbms_xplan.display); // we show Pstart and Pstop not zero value
+
+@ Create Hash Part:
+  >> Create table sales_hash (
+     salesman_id NUMBER(8),
+     salesman_name VARCHAR2(30),
+     sales_amount NUMBER(10),
+     week_no NUMBER(2))
+  >> PARTITION BY HASH (salesman_id)
+  >> PARTITIONS 4;
+
+@ Create List Part:
+  >> Create table sales_list (
+  >> salesman_id NUMBER(5),
+  >> sales_state VARCHAR2(20),
+  >> sales_amount NUMBER(10),
+  >> sales_date Date)
+  >> PARTITION BY LIST (sales_state)
+  >> (PARTITION sales_west VALUES (‘California’, ‘Hawaii’),
+  >> PARTITION sales_east VALUES (‘New York’, ‘Virginia’, ‘Florida’),
+  >> PARTITION sales_central VALUES (‘Texas’, ‘Illinois’),
+  >> PARTITION sales_other VALUES (DEFAULT)
+  >> );
+
+@ Create Range With Hash:
+   
+  >> Create table sales_range_hash (
+  >> s_productid NUMBER(8),
+  >> s_saledate DATE,
+  >> s_custid NUMBER(4),
+  >> s_totalprice NUMBER(6))
+  >> PARTITION BY RANGE (s_saledate) SUBPARTITION BY hash(s_productid) SUBPARTITIONS 8
+  >> (PARTITION sal11q1 VALUES LESS THAN (TO_DATE('01-APR-2011','dd-MON-yyyy')),
+  >> PARTITION sal11q2 VALUES LESS THAN (TO_DATE('01-JUL-2011','dd-MON-yyyy')),
+  >> PARTITION sal11q3 VALUES LESS THAN (TO_DATE('01-OCT-2011','dd-MON-yyyy')),
+  >> PARTITION sal11q4 VALUES LESS THAN (TO_DATE('01-JAN-2012','dd-MON-yyyy')));
+
+
+@ Create Range With List :
+   //already you must create table Spaces
+  >> Create table quarterly_regional_sales (
+  >> deptno NUMBER(4),
+  >> item_no VARCHAR2(20),
+  >> txn_date DATE,
+  >> txn_amount NUMBER(8,2),
+  >> state VARCHAR2(8))
+  >> PARTITION BY RANGE (txn_date) SUBPARTITION BY LIST (state)
+  >> SUBPARTITION template
+  >> ( SUBPARTITION northwest values (‘OR’,’WA’) TABLESPACE ts1  //this contain lists of q1_2011 and q2_2011 and q3_2011 and q4_2011
+  , SUBPARTITION southwest values (‘AE’,’UT’,’NM’) TABLESPACE ts2
+  , SUBPARTITION northeast values (‘NY’,’VM’,’NJ’) TABLESPACE ts3
+  , SUBPARTITION southeast values (‘FL’,’GA’) TABLESPACE ts4
+  , SUBPARTITION northcentral values (‘SD’,’WI’) TABLESPACE ts5
+  , SUBPARTITION southcentral values (‘NM’,’TX’) TABLESPACE ts6)
+  >> (PARTITION q1_2011 VALUES LESS THAN (TO_DATE('01-APR-2011','dd-MON-yyyy')),
+  >> PARTITION q2_2011 VALUES LESS THAN (TO_DATE('01-JUL-2011','dd-MON-yyyy')),
+  >> PARTITION q3_2011 VALUES LESS THAN (TO_DATE('01-OCT-2011','dd-MON-yyyy')),
+  >> PARTITION q4_2011 VALUES LESS THAN (TO_DATE('01-JAN-2012','dd-MON-yyyy'))
+  >> );

@@ -1,0 +1,7 @@
+{
+    "jwtPrivateKey": "fileManagr_jwtPrivateKey",
+    "levelOfLog": "info",
+    "MaxUpload": "100"
+
+
+}

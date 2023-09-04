@@ -1,0 +1,38 @@
+{
+    "name": "file-manager",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js",
+        "dev": "nodemon index.js",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "apicache": "^1.6.3",
+        "axios": "^1.2.1",
+        "bcrypt": "^5.1.0",
+        "body-parser": "^1.20.1",
+        "compression": "^1.7.4",
+        "concurrently": "^7.6.0",
+        "config": "^1.29.4",
+        "dotenv": "^16.0.0",
+        "express": "^4.17.3",
+        "express-busboy": "^9.0.0",
+        "express-rate-limit": "^6.7.0",
+        "joi": "^17.6.0",
+        "joi-objectid": "^4.0.2",
+        "jsonwebtoken": "^8.5.1",
+        "lodash": "^4.17.21",
+        "multer": "^1.4.5-lts.1",
+        "mysql2": "^2.3.3",
+        "nodemon": "^2.0.20",
+        "redis": "^3.1.2",
+        "sequelize": "^6.20.1",
+        "winston": "^3.8.2",
+        "winston-loggly-bulk": "^3.2.1"
+    }
+}
